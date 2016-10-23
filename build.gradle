@@ -1,0 +1,101 @@
+apply plugin: 'cpp'
+apply plugin: "visual-studio"
+apply plugin: 'ru.ultrabot.qtbuild'
+
+model {
+
+  buildTypes {
+    release
+    debug
+  }
+
+  platforms {
+      x64 {
+          architecture "x86_64"
+      }
+  }
+
+  visualStudio {
+        projects.all {
+            projectFile.location = "vs/${name}.vcxproj"
+            filtersFile.location = "vs/${name}.vcxproj.filters"
+        }
+        solutions.all {
+            solutionFile.location = "vs/${name}.sln"
+            solutionFile.withContent { TextProvider content ->
+                content.asBuilder().insert(0, "# GENERATED FILE: DO NOT EDIT\n")
+                content.text = content.text.replaceAll("HideSolutionNode = FALSE", "HideSolutionNode = TRUE")
+            }
+        }
+  }
+
+  binaries {
+      all {
+          if (toolChain in Gcc && buildType == buildTypes.debug) {
+              cppCompiler.args "-g"
+          }
+          if (toolChain in VisualCpp) {
+            cppCompiler.args '/FS'
+            if (buildType == buildTypes.debug) {
+              cppCompiler.args '/Zi'
+              cppCompiler.define 'DEBUG'
+              linker.args '/DEBUG'
+            }
+          }
+      }
+  }
+
+  repositories {
+      libs(PrebuiltLibraries) {
+        QtHeaders {
+            headers.srcDir "c:/Qt/5.6/msvc2013_64/include/"
+        }
+        QtMain {
+            binaries.withType(StaticLibraryBinary) {
+              if (buildType == buildTypes.debug) {
+                staticLibraryFile = file("c:/Qt/5.6/msvc2013_64/lib/qtmaind.lib") // <-- put the path to the qt libs in here
+              }
+              else {
+                staticLibraryFile = file("c:/Qt/5.6/msvc2013_64/lib/qtmain.lib") // <-- put the path to the qt libs in here
+              }
+            }
+        }
+        ["Core", "Gui"].each { libName ->
+          "Qt${libName}" {
+            headers.srcDir "c:/Qt/5.6/msvc2013_64/include/Qt${libName}" // <-- put the path to the qt header in here
+            binaries.withType(StaticLibraryBinary) {
+              if (buildType == buildTypes.debug) {
+                staticLibraryFile = file("c:/Qt/5.6/msvc2013_64/lib/Qt5${libName}d.lib") // <-- put the path to the qt libs in here
+              }
+              else {
+                staticLibraryFile = file("c:/Qt/5.6/msvc2013_64/lib/Qt5${libName}.lib") // <-- put the path to the qt libs in here
+              }
+            }
+          }
+        }
+      }
+  }
+
+  components {
+    main(NativeExecutableSpec) {
+      targetPlatform "x64"
+      sources {
+        cpp {
+          source {
+            srcDir "src/app"
+            include "**/*.cpp"
+
+            lib library: 'QtHeaders', linkage: 'api'
+            lib library: 'QtMain', linkage: 'static'
+            lib library: 'QtCore', linkage: 'static'
+            lib library: 'QtGui', linkage: 'static'
+          }
+          exportedHeaders {
+            srcDir "src/app"
+            include "**/*.h"
+          }
+        }
+      }
+    }
+  }
+}
